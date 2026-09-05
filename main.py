@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import argparse
 import sys
@@ -12,6 +12,7 @@ DEFAULT_TIMEOUT = 45000
 
 def wait_and_click(page: Page, text: str, exact: bool = True) -> None:
     element = page.get_by_text(text, exact=exact).first
+    element.wait_for(state="visible", timeout=DEFAULT_TIMEOUT)
     element.scroll_into_view_if_needed()
     element.click()
 
@@ -19,79 +20,60 @@ def wait_and_click(page: Page, text: str, exact: bool = True) -> None:
 def navigate_to_table(page: Page) -> None:
     print("Acessando SIDRA...")
     page.goto(BASE_URL, wait_until="domcontentloaded", timeout=DEFAULT_TIMEOUT)
-    page.locator("body").wait_for(state="visible", timeout=DEFAULT_TIMEOUT)
 
     print("Navegando nos menus até a tabela 1209...")
     wait_and_click(page, "Pesquisas")
     wait_and_click(page, "População")
     wait_and_click(page, "Censo Demográfico", exact=False)
-
-    page.wait_for_load_state("domcontentloaded")
     wait_and_click(page, "Séries Temporais", exact=False)
-    page.wait_for_load_state("domcontentloaded")
 
-    link = page.get_by_role("link", name="1209").first
-    if not link.is_visible():
-        link = page.get_by_text("1209", exact=False).first
+    try:
+        wait_and_click(page, "1209", exact=False)
+    except PlaywrightTimeoutError:
+        raise RuntimeError("Não foi possível localizar a tabela 1209")
 
-    link.scroll_into_view_if_needed()
-    link.click()
-
-    page.wait_for_load_state("domcontentloaded")
     page.get_by_text("60 a 69 anos").first.wait_for(state="visible", timeout=DEFAULT_TIMEOUT)
 
 
 def select_filters(page: Page) -> None:
     print("Aplicando filtros de idade...")
-    total_opt = page.get_by_text("Total", exact=True).first
-    total_opt.scroll_into_view_if_needed()
-    total_opt.click()
-
+    wait_and_click(page, "Total")
     wait_and_click(page, "60 a 69 anos")
     wait_and_click(page, "70 anos ou mais")
 
     print("Selecionando Unidades da Federação...")
+    page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+    page.wait_for_timeout(1000)
+
     uf_label = page.get_by_text("Unidade da Federação", exact=False).first
     uf_label.wait_for(state="visible", timeout=DEFAULT_TIMEOUT)
     uf_label.scroll_into_view_if_needed()
 
-    tree_node = uf_label.locator("xpath=..")
-    checkbox = tree_node.locator(".jstree-checkbox, input[type='checkbox']").first
+    parent = uf_label.locator("xpath=..")
+    toggle_button = parent.locator("button.sidra-toggle").first
 
-    if checkbox.is_visible():
-        checkbox.click()
-    else:
-        box = uf_label.bounding_box()
-        if box:
-            page.mouse.click(box["x"] - 12, box["y"] + (box["height"] / 2))
-        else:
-            uf_label.click()
+    try:
+        toggle_button.click()
+        print("Todas as UFs foram selecionadas com sucesso.")
+    except Exception as e:
+        print(f"Não consegui clicar no botão de Unidades da Federação: {e}")
 
 
 def download_file(page: Page, target_path: Path) -> None:
     target_path.parent.mkdir(parents=True, exist_ok=True)
 
     print("Abrindo janela de download...")
-    dl_button = page.get_by_role("button", name="Download").first
-    if not dl_button.is_visible():
-        dl_button = page.get_by_role("link", name="Download").first
-
-    dl_button.scroll_into_view_if_needed()
-    dl_button.click()
-
-    modal = page.locator("#modal-downloads")
-    modal.wait_for(state="visible", timeout=DEFAULT_TIMEOUT)
+    wait_and_click(page, "Download")
 
     print("Definindo formato CSV (BR)...")
-    select = modal.locator("select[name='formato-arquivo'], select").first
-    select.wait_for(state="visible", timeout=10000)
-    select.select_option(label="CSV (BR)")
+    formato_select = page.locator("form#download-form select[name='formato-arquivo']").first
+    formato_select.wait_for(state="visible", timeout=DEFAULT_TIMEOUT)
+    formato_select.select_option("br.csv")
 
     print("Baixando arquivo...")
-    confirm_btn = modal.locator("button, input[type='submit'], a").filter(has_text="Download").first
-    
+    # O botão de download é um link <a id="opcao-downloads">
     with page.expect_download(timeout=DEFAULT_TIMEOUT) as download_info:
-        confirm_btn.click()
+        page.locator("a#opcao-downloads.btn-green-sucess").click()
 
     download = download_info.value
     download.save_as(target_path)
