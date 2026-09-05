@@ -1,42 +1,108 @@
-﻿# Desafio RPA � SIDRA/IBGE tabela 1209
+﻿﻿# 🤖 Automação RPA – Extração de Dados Demográficos (SIDRA / IBGE)
 
-Automa��o em Python com Playwright que inicia em `https://sidra.ibge.gov.br/`, percorre a interface de Pesquisas at� o Censo Demogr�fico/S�ries Temporais e abre a tabela 1209 por meio do link exibido na p�gina. N�o h� URL da tabela, API REST, requisi��o HTTP de dados ou `page.evaluate` no c�digo.
+Este projeto consiste em uma solução de automação RPA (*Robotic Process Automation*) desenvolvida em Python com Playwright. O objetivo é navegar pela interface pública do portal **SIDRA/IBGE**, localizar a **Tabela 1209** (População por grupos de idade), aplicar filtros específicos para a população de **60 anos ou mais** por **Unidades da Federação (UF)** e realizar o download dos dados em formato **CSV (BR)**.
 
-## Requisitos
+## 📁 Estrutura do Projeto
 
-- Python 3.10 ou superior
-- Google Chrome/Chromium (instalado automaticamente pelo Playwright)
-
-## Execu��o
-
-No PowerShell, na raiz do projeto:
-
-```powershell
-py -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-playwright install chromium
-python main.py --headed
+```text
+.
+├── dados/
+│   └── populacao_60mais_1209.csv   # Arquivo CSV gerado pela automação
+├── main.py                         # Script principal de automação
+├── README.md                       # Documentação do projeto
+└── requirements.txt                # Dependências do projeto
 ```
 
-Para rodar sem mostrar o navegador:
+## ⚙️ Pré-requisitos e Instalação
 
-```powershell
+### 1. Requisitos do Sistema
+
+- **Python**: versão 3.8 ou superior.
+- **Chromium**: instalado pelo Playwright.
+
+### 2. Instalação das Dependências
+
+Na raiz do projeto, instale os pacotes necessários:
+
+```bash
+python -m pip install -r requirements.txt
+python -m playwright install chromium
+```
+
+## 🚀 Como Executar
+
+A automação é executada pela linha de comando.
+
+### Modo Headless
+
+Executa em segundo plano, sem exibir o navegador:
+
+```bash
 python main.py
 ```
 
-Ao t�rmino, o arquivo ser� salvo em `dados/populacao_60mais_1209.csv`. A pasta � criada automaticamente. O CSV n�o � versionado, pois � uma sa�da reproduz�vel da automa��o.
+### Modo Headed
 
-## Estrat�gia adotada
+Exibe o navegador durante a execução:
 
-1. Abre exclusivamente a p�gina inicial do SIDRA.
-2. Navega por `Pesquisas` ? `Popula��o` ? `Censo Demogr�fico` ? `S�ries Temporais`.
-3. Localiza o link da tabela 1209 na lista apresentada pela interface e o aciona ap�s rolar at� ele.
-4. Configura `Grupo de idade: 60 anos ou mais`, `N�vel Territorial: Unidades da Federa��o` e o per�odo mais recente exibido.
-5. Aciona o download CSV pelo menu da pr�pria p�gina e valida se o arquivo foi gravado e n�o est� vazio.
+```bash
+python main.py --headed
+```
 
-Os seletores priorizam pap�is acess�veis, nomes vis�veis e rela��o com o r�tulo da dimens�o. H� esperas expl�citas, timeout de 45 segundos e mensagens de erro para indisponibilidade ou altera��es da interface. Use `--headed` na primeira execu��o: ele facilita auditar o caminho RPA e identificar mudan�as na UI do SIDRA.
+Após uma execução bem-sucedida, o arquivo será salvo em `dados/populacao_60mais_1209.csv`. O caminho é calculado a partir da localização do `main.py`, independentemente do diretório atual do terminal.
 
-## Observa��o sobre o ambiente atual
+## 🎯 Requisitos Cumpridos
 
-Este reposit�rio cont�m o gerador do CSV, mas o arquivo n�o � pr�-preenchido: ele deve ser gerado pela execu��o real do Playwright, como pede o desafio. Neste ambiente de edi��o n�o h� Python/Node ou navegador automatiz�vel instalados para realizar esse download sem simular o resultado.
+- [x] **Navegação estritamente pela interface**: a automação inicia na *Home* (`https://sidra.ibge.gov.br/`) e navega pelos menus até a tabela.
+- [x] **Zero acesso direto ou API REST**: não são feitas chamadas de API nem é acessada diretamente a URL da tabela.
+- [x] **Sem hacks de DOM**: não utiliza `evaluate()`, `querySelector()` nem alteração manual de elementos no HTML.
+- [x] **Filtros aplicados**:
+	- Remoção da seleção global `Total`.
+	- Seleção dos grupos etários `60 a 69 anos` e `70 anos ou mais`.
+	- Seleção de `Unidade da Federação` na árvore territorial.
+- [x] **Download configurado**: a modal é processada para selecionar o formato `CSV (BR)` e iniciar a transferência.
+- [x] **Destino dos dados**: arquivo salvo em `dados/populacao_60mais_1209.csv`.
+
+## 🛠️ Estratégia Adotada e Arquitetura do Script
+
+A estratégia foi desenhada para garantir estabilidade, resiliência e simulação fiel do uso humano.
+
+### 1. Navegação Baseada em Intenção e Atributos Acessíveis
+
+O script utiliza seletores baseados em texto visível e papéis de acessibilidade, como `get_by_text()` e `get_by_role()`, em vez de depender de seletores CSS frágeis.
+
+**Motivo:** textos e papéis interativos tendem a permanecer estáveis mesmo quando o CSS do portal é atualizado.
+
+### 2. Tratamento de Carregamentos Assíncronos e Instabilidades
+
+O portal SIDRA utiliza carregamentos assíncronos ao expandir nós da árvore e alternar opções.
+
+**Motivo:** o script usa esperas explícitas baseadas na visibilidade dos elementos e no estado `domcontentloaded`, reduzindo problemas de *race condition*.
+
+### 3. Interação com a Árvore de Recorte Territorial (JSTree)
+
+Para selecionar as Unidades da Federação, o script localiza o nó `Unidade da Federação` e interage com a caixa de seleção associada, usando os elementos disponíveis na interface.
+
+**Motivo:** a seleção do nó territorial evita depender de seletores visuais frágeis e permite que a própria árvore controle as opções relacionadas.
+
+### 4. Captura Nativa do Download via Evento
+
+O download é gerenciado pelo evento `page.expect_download` do Playwright.
+
+**Motivo:** isso captura a transferência iniciada pela página e permite salvar o arquivo no caminho configurado, independentemente do nome temporário atribuído pelo navegador.
+
+## 🛑 Desafios Encontrados e Soluções
+
+| Desafio encontrado | Causa | Solução aplicada |
+| --- | --- | --- |
+| Componentes dinâmicos da interface (JSTree) | A árvore territorial utiliza elementos gráficos customizados, como `.jstree-checkbox`. | O script localiza o nó `Unidade da Federação` e interage com o checkbox associado ou com o elemento da própria interface. |
+| Modal dinâmica de download | Ao clicar no botão inicial de download, uma modal `#modal-downloads` é renderizada para escolha do formato. | O script restringe a busca ao elemento `#modal-downloads`, seleciona `CSV (BR)` e aciona a confirmação. |
+| Tempo de resposta oscilante do SIDRA | O servidor do IBGE pode apresentar lentidão em requisições de tabelas censitárias. | O script usa timeout global de `45.000 ms` e tratamento de exceções específicas. |
+
+## 📄 Saída Gerada
+
+O arquivo final contém os dados baixados da Tabela 1209 no formato CSV (BR):
+
+```text
+dados/populacao_60mais_1209.csv
+```

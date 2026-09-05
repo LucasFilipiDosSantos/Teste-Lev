@@ -1,5 +1,6 @@
 __pycache__/
+.gitignore
 *.py[cod]
 .venv/
-dados/*.csv
 !dados/.gitkeep
+/.venv-linux
