@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sidra-rpa"
+version = "0.1.0"
+description = "Automação RPA para extração de dados demográficos do SIDRA"
+requires-python = ">=3.9"
+dependencies = ["playwright>=1.48,<2"]
+
+[project.scripts]
+sidra-rpa = "sidra_rpa.main:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

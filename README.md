@@ -6,15 +6,16 @@ Este projeto consiste em uma solução de automação RPA (*Robotic Process Auto
 
 ```text
 .
-├── dados/
-│   ├── populacao_60mais_1209.csv   # CSV original baixado
-│   └── populacao_60mais_1209_tratado.md  # CSV tratado em formato Markdown
-├── rpa_extracao_demografica_sidra.py  # Entry point da automação
-├── sidra_automation.py              # Navegação, filtros e download
-├── tratamento_csv.py                # Tratamento e formatação da saída
-├── sidra_config.py                  # Configurações e parâmetros
-├── README.md                        # Documentação do projeto
-└── requirements.txt                 # Dependências do projeto
+├── data/
+│   ├── raw/                         # CSV original baixado
+│   └── processed/                   # Resultado tratado em Markdown
+├── src/sidra_rpa/
+│   ├── main.py                      # Coordenação do fluxo
+│   ├── config.py                    # Configurações e caminhos
+│   ├── automation/                  # Browser, navegação, filtros e download
+│   └── processing/                  # Tratamento do CSV
+├── pyproject.toml                   # Pacote e dependências
+└── README.md                        # Documentação do projeto
 ```
 
 ## ⚙️ Pré-requisitos e Instalação
@@ -29,7 +30,7 @@ Este projeto consiste em uma solução de automação RPA (*Robotic Process Auto
 Na raiz do projeto, instale os pacotes necessários:
 
 ```bash
-python -m pip install -r requirements.txt
+python -m pip install -e .
 python -m playwright install chromium
 ```
 
@@ -42,7 +43,7 @@ A automação é executada pela linha de comando.
 Executa em segundo plano, sem exibir o navegador:
 
 ```bash
-python rpa_extracao_demografica_sidra.py
+sidra-rpa
 ```
 
 ### Modo Headed
@@ -50,10 +51,10 @@ python rpa_extracao_demografica_sidra.py
 Exibe o navegador durante a execução:
 
 ```bash
-python rpa_extracao_demografica_sidra.py --headed
+sidra-rpa --headed
 ```
 
-Após uma execução bem-sucedida, o CSV será salvo em `dados/populacao_60mais_1209.csv` e o tratamento será executado automaticamente. O resultado formatado será salvo em `dados/populacao_60mais_1209_tratado.md`. Os caminhos são calculados a partir da localização dos scripts, independentemente do diretório atual do terminal.
+Após uma execução bem-sucedida, o CSV será salvo em `data/raw/populacao_60mais_1209.csv` e o tratamento será executado automaticamente. O resultado formatado será salvo em `data/processed/populacao_60mais_1209.md`. Os caminhos são calculados a partir da raiz do projeto, independentemente do diretório atual do terminal.
 
 ## 🎯 Requisitos Cumpridos
 
@@ -65,15 +66,16 @@ Após uma execução bem-sucedida, o CSV será salvo em `dados/populacao_60mais_
 	- Seleção dos grupos etários `60 a 69 anos` e `70 anos ou mais`.
 	- Seleção de `Unidade da Federação` na árvore territorial.
 - [x] **Download configurado**: a modal é processada para selecionar o formato `CSV (BR)` e iniciar a transferência.
-- [x] **Destino dos dados**: arquivo salvo em `dados/populacao_60mais_1209.csv`.
+- [x] **Destino dos dados**: arquivo salvo em `data/raw/populacao_60mais_1209.csv`.
 
 ## 🛠️ Estratégia Adotada e Arquitetura do Script
 
 A arquitetura foi dividida para manter o entry point simples e concentrar cada responsabilidade em um módulo:
 
-- `rpa_extracao_demografica_sidra.py`: interpreta os argumentos da linha de comando e configura o logging.
-- `sidra_config.py`: centraliza URL, timeout, filtros de idade e caminho do arquivo de saída.
-- `sidra_automation.py`: controla o navegador, a navegação pela interface, os filtros e o download.
+- `sidra_rpa.main`: coordena a automação e o processamento.
+- `sidra_rpa.config`: centraliza URL, timeout, filtros de idade e caminhos.
+- `sidra_rpa.automation`: separa browser, navegação, filtros e download.
+- `sidra_rpa.processing.csv_processor`: lê o CSV e gera a saída Markdown.
 
 A estratégia foi desenhada para garantir estabilidade, resiliência e simulação fiel do uso humano.
 
@@ -91,7 +93,7 @@ O helper `first_visible()` recebe uma sequência de locators e retorna o primeir
 2. Texto visível, quando a ação é baseada em um rótulo da interface.
 3. Seletor estrutural específico, como fallback para controles que não possuem nome acessível.
 
-Essa estratégia mantém o locator acessível como primeira opção sem depender exclusivamente de uma hipótese sobre a árvore de acessibilidade do portal. O fallback estrutural continua isolado no módulo `sidra_automation.py`.
+Essa estratégia mantém o locator acessível como primeira opção sem depender exclusivamente de uma hipótese sobre a árvore de acessibilidade do portal. O fallback estrutural continua isolado nos helpers da automação.
 
 ### 3. Tratamento de Carregamentos Assíncronos e Instabilidades
 
@@ -124,14 +126,14 @@ O download é gerenciado pelo evento `page.expect_download` do Playwright.
 O arquivo final contém os dados baixados da Tabela 1209 no formato CSV (BR):
 
 ```text
-dados/populacao_60mais_1209.csv
+data/raw/populacao_60mais_1209.csv
 ```
 
 ## 📚 Leitura Literal do Código
 
 Esta seção explica o que cada parte dos arquivos faz, na ordem em que o programa é carregado e executado.
 
-### Arquivo `sidra_config.py`
+### Arquivo `sidra_rpa/config.py`
 
 Este arquivo contém somente configurações. Ele não abre o navegador, não acessa o SIDRA e não executa funções.
 
@@ -150,11 +152,11 @@ FILE_PATH = Path(__file__).resolve().parent / "dados" / "populacao_60mais_1209.c
 
 - `__file__` representa o arquivo Python que está sendo executado.
 - `.resolve()` transforma esse caminho em um caminho absoluto.
-- `.parent` obtém a pasta que contém `sidra_config.py`.
-- `/ "dados"` entra na pasta de saída.
+- `.parents[2]` localiza a raiz do projeto a partir do pacote.
+- `/ "data"` entra na pasta de dados.
 - `/ "populacao_60mais_1209.csv"` define o nome do arquivo final.
 
-O resultado é que o CSV não depende da pasta atual do terminal. Como o arquivo de configuração fica na raiz do projeto, a saída fica em `dados/populacao_60mais_1209.csv`.
+O resultado é que o CSV não depende da pasta atual do terminal. A saída fica em `data/raw/populacao_60mais_1209.csv`.
 
 #### `DEFAULT_TIMEOUT`
 
@@ -165,9 +167,9 @@ DEFAULT_TIMEOUT = 45_000
 
 É uma tupla com os três textos que serão clicados na dimensão de idade. A ordem é intencional: primeiro remove `Total`, depois seleciona as duas faixas de idade.
 
-### Arquivo `sidra_automation.py`
+### Módulos `sidra_rpa.automation`
 
-Este é o módulo que contém a automação Playwright. Ele não é o arquivo recomendado para execução direta; o entry point é `rpa_extracao_demografica_sidra.py`.
+Esses módulos contêm a automação Playwright. O ponto de entrada da aplicação é `sidra_rpa.main`.
 
 #### Imports
 
@@ -177,7 +179,7 @@ Este é o módulo que contém a automação Playwright. Ele não é o arquivo re
 - `Locator` e `Page`: representam elementos localizados e páginas do Playwright.
 - `PlaywrightTimeoutError`: representa falhas de tempo limite do Playwright.
 - `sync_playwright`: inicia a API síncrona do Playwright.
-- O segundo bloco de imports recebe as constantes do `sidra_config.py`.
+- Os módulos recebem configurações de `sidra_rpa.config`.
 
 #### `logger = logging.getLogger(__name__)`
 
@@ -302,7 +304,7 @@ Este é o entry point, ou seja, o arquivo que deve ser executado pelo usuário.
 - `logging` exibe mensagens de execução e erro.
 - `sys` permite encerrar o processo com um código numérico.
 - `PlaywrightTimeoutError` identifica timeouts de forma específica.
-- `run` importa a função coordenadora do módulo `sidra_automation`.
+- `main` importa os componentes especializados de `sidra_rpa.automation`.
 
 #### `logging.basicConfig(...)`
 
@@ -355,10 +357,10 @@ Não existe `time.sleep()` nem `page.wait_for_timeout()` no código atual. Tamb�
 CLI
  |
  v
-rpa_extracao_demografica_sidra.py
+sidra_rpa.main
  |
  v
-sidra_automation.run()
+sidra_rpa.main
  |
  +--> abre Chromium e cria contexto pt-BR
  |
@@ -374,7 +376,7 @@ sidra_automation.run()
  |
  +--> abre Download e escolhe br.csv
  |
- +--> captura o download e salva em dados/populacao_60mais_1209.csv
+ +--> captura o download e salva em data/raw/populacao_60mais_1209.csv
  |
  +--> valida o arquivo e fecha o navegador
 ```
@@ -384,8 +386,8 @@ sidra_automation.run()
 Antes de executar o site real, é possível validar a sintaxe e a CLI:
 
 ```bash
-python -m py_compile rpa_extracao_demografica_sidra.py sidra_config.py sidra_automation.py
-python rpa_extracao_demografica_sidra.py --help
+PYTHONPATH=src python -m compileall -q src
+PYTHONPATH=src python -m sidra_rpa.main --help
 ```
 
 Esses comandos verificam que os módulos compilam e que o entry point consegue carregar os argumentos. Eles não navegam no SIDRA nem baixam o CSV.
